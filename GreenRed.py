@@ -1,43 +1,13 @@
 import cv2
+from ultralytics import YOLO
 
-def gstreamer_pipeline(
-    capture_width=1920,
-    capture_height=1080,
-    display_width=960,
-    display_height=540,
-    framerate=30,
-    flip_method=0,
-):
-    return (
-        "nvarguscamerasrc ! "
-        "video/x-raw(memory:NVMM), "
-        "width=(int)%d, height=(int)%d, framerate=(fraction)%d/1 ! "
-        "nvvidconv flip-method=%d ! "
-        "video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! "
-        "videoconvert ! "
-        "video/x-raw, format=(string)BGR ! appsink drop=True"
-        % (
-            capture_width,
-            capture_height,
-            framerate,
-            flip_method,
-            display_width,
-            display_height,
-        )
-    )
+def person_detect_status():
+    window_title = "Camera A - Person Detection"
 
-def face_detect_status():
-    window_title = "Camera A Face Detection"
+    # Load YOLOv8 nano model (downloads automatically ~6MB, fastest option)
+    model = YOLO("yolov8n.pt")
 
-    face_cascade = cv2.CascadeClassifier(
-        "/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml"
-    )
-
-    eye_cascade = cv2.CascadeClassifier(
-        "/usr/share/opencv4/haarcascades/haarcascade_eye.xml"
-    )
-
-    video_capture = cv2.VideoCapture(gstreamer_pipeline(), cv2.CAP_GSTREAMER)
+    video_capture = cv2.VideoCapture(0)
 
     if not video_capture.isOpened():
         print("Unable to open camera")
@@ -53,12 +23,14 @@ def face_detect_status():
                 print("Could not read frame")
                 continue
 
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+            # Run YOLO detection, only look for class 0 = person
+            results = model(frame, classes=[0], verbose=False)
 
-            # Main project logic
-            if len(faces) > 0:
-                status = "RED - face/person detected"
+            # Get bounding boxes
+            boxes = results[0].boxes
+
+            if len(boxes) > 0:
+                status = "RED - person detected"
                 status_color = (0, 0, 255)
             else:
                 status = "GREEN - clear"
@@ -66,23 +38,22 @@ def face_detect_status():
 
             print("Camera A:", status)
 
-            for (x, y, w, h) in faces:
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+            # Draw one box per detected person
+            for box in boxes:
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                conf = float(box.conf[0])
+                cv2.rectangle(frame, (x1, y1), (x2, y2), status_color, 2)
+                cv2.putText(
+                    frame,
+                    f"person {conf:.0%}",
+                    (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    status_color,
+                    2,
+                )
 
-                roi_gray = gray[y : y + h, x : x + w]
-                roi_color = frame[y : y + h, x : x + w]
-
-                eyes = eye_cascade.detectMultiScale(roi_gray)
-
-                for (ex, ey, ew, eh) in eyes:
-                    cv2.rectangle(
-                        roi_color,
-                        (ex, ey),
-                        (ex + ew, ey + eh),
-                        (0, 255, 0),
-                        2,
-                    )
-
+            # Status label in top-left
             cv2.putText(
                 frame,
                 status,
@@ -96,7 +67,6 @@ def face_detect_status():
             cv2.imshow(window_title, frame)
 
             keyCode = cv2.waitKey(10) & 0xFF
-
             if keyCode == 27 or keyCode == ord("q"):
                 break
 
@@ -105,4 +75,4 @@ def face_detect_status():
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    face_detect_status()
+    person_detect_status()
