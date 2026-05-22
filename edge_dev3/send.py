@@ -2,20 +2,26 @@ import os
 import mimetypes
 from datetime import datetime
 
-# Google Drive API imports (skeleton — install with:
-#   pip install google-api-python-client google-auth)
+from dotenv import load_dotenv
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-# === MANUAL CONFIG (fill these in after you create your API keys) ===
-SERVICE_ACCOUNT_FILE = "credentials.json"   # path to your service account JSON
-DRIVE_FOLDER_ID = "PUT_YOUR_DRIVE_FOLDER_ID_HERE"
+# Load variables from edge_dev3/.env (same folder as this file)
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
+SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials.json")
+DRIVE_FOLDER_ID = os.getenv("DRIVE_FOLDER_ID")
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-# ====================================================================
 
 
 def _build_drive_service():
+    if not DRIVE_FOLDER_ID:
+        raise RuntimeError("DRIVE_FOLDER_ID is not set — check edge_dev3/.env")
+    if not os.path.exists(SERVICE_ACCOUNT_FILE):
+        raise FileNotFoundError(
+            f"Service account file not found: {SERVICE_ACCOUNT_FILE}"
+        )
     creds = service_account.Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES
     )

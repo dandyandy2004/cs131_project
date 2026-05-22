@@ -22,7 +22,7 @@ one ENTER, one LEAVE).
 From the repo root:
 
 ```bash
-pip install ultralytics opencv-python google-api-python-client google-auth
+pip install ultralytics opencv-python google-api-python-client google-auth python-dotenv
 ```
 
 The first run of YOLO will auto-download `yolov8n.pt` (~6 MB) if it isn't
@@ -43,14 +43,22 @@ already in the project root.
    with the service account's email address** (Editor access).
 4. Copy that folder's ID from the URL
    (`https://drive.google.com/drive/folders/<FOLDER_ID>`).
-5. Open `edge_dev3/send.py` and set:
+5. Copy the example env file and fill it in:
 
-   ```python
-   SERVICE_ACCOUNT_FILE = "credentials.json"
-   DRIVE_FOLDER_ID = "<paste your folder ID here>"
+   ```bash
+   cp edge_dev3/.env.example edge_dev3/.env
    ```
 
-> ⚠ Add `credentials.json` to `.gitignore` — do **not** commit it.
+   Then edit `edge_dev3/.env`:
+
+   ```ini
+   GOOGLE_APPLICATION_CREDENTIALS=credentials.json
+   DRIVE_FOLDER_ID=<paste your folder ID here>
+   CAMERA_INDEX=0
+   MAX_SNAPSHOTS=2
+   ```
+
+> ⚠ Both `.env` and `credentials.json` are already in `.gitignore` — do **not** commit them.
 
 ---
 

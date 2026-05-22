@@ -1,14 +1,18 @@
 import os
 import cv2
 from datetime import datetime
+from dotenv import load_dotenv
 
 from cam import open_camera, read_frame, release_camera
 from detect import load_model, detect_persons, classify, annotate_frame
 from send import upload_snapshot
 
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
 WINDOW_TITLE = "Edge Dev 3 - Person Detection"
 SNAPSHOT_DIR = "snapshots"
-MAX_SNAPSHOTS = 2   # hard cap: at most 2 uploads per program run (1 enter + 1 leave)
+CAMERA_INDEX = int(os.getenv("CAMERA_INDEX", "0"))
+MAX_SNAPSHOTS = int(os.getenv("MAX_SNAPSHOTS", "2"))   # hard cap per run
 
 
 def save_snapshot(frame, label):
@@ -21,7 +25,7 @@ def save_snapshot(frame, label):
 
 def run():
     model = load_model()
-    cap = open_camera(0)
+    cap = open_camera(CAMERA_INDEX)
     cv2.namedWindow(WINDOW_TITLE, cv2.WINDOW_AUTOSIZE)
 
     prev_person = False       # was a person in the previous frame?
