@@ -11,3 +11,6 @@ firebase_credentials.json
 
 # local snapshots
 edge_dev3/snapshots/
+
+# local test mode artifacts
+local_data/
