@@ -1,45 +1,59 @@
 import os
-import mimetypes
 from datetime import datetime
 
 from dotenv import load_dotenv
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+import firebase_admin
+from firebase_admin import credentials, firestore, storage
 
-# Load variables from edge_dev3/.env (same folder as this file)
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
-SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials.json")
-DRIVE_FOLDER_ID = os.getenv("DRIVE_FOLDER_ID")
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+FIREBASE_CREDENTIALS = os.getenv("FIREBASE_CREDENTIALS", "firebase_credentials.json")
+FIREBASE_STORAGE_BUCKET = os.getenv("FIREBASE_STORAGE_BUCKET")
 
 
-def _build_drive_service():
-    if not DRIVE_FOLDER_ID:
-        raise RuntimeError("DRIVE_FOLDER_ID is not set — check edge_dev3/.env")
-    if not os.path.exists(SERVICE_ACCOUNT_FILE):
+def _init_firebase():
+    if firebase_admin._apps:
+        return
+    if not FIREBASE_STORAGE_BUCKET:
+        raise RuntimeError("FIREBASE_STORAGE_BUCKET is not set — check .env")
+    if not os.path.exists(FIREBASE_CREDENTIALS):
         raise FileNotFoundError(
-            f"Service account file not found: {SERVICE_ACCOUNT_FILE}"
+            f"Firebase service account file not found: {FIREBASE_CREDENTIALS}"
         )
-    creds = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES
-    )
-    return build("drive", "v3", credentials=creds)
+    cred = credentials.Certificate(FIREBASE_CREDENTIALS)
+    firebase_admin.initialize_app(cred, {"storageBucket": FIREBASE_STORAGE_BUCKET})
 
 
-def upload_snapshot(local_path, label="event"):
-    """Upload a single image file to the configured Google Drive folder."""
-    service = _build_drive_service()
-    filename = f"{label}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+def upload_snapshot(
+    local_path,
+    label="event",
+    confidence=0.0,
+    bbox_height_px=0,
+    distance_estimate_m=0.0,
+):
+    """Upload a snapshot to Firebase Cloud Storage and log an event in Firestore."""
+    _init_firebase()
 
-    file_metadata = {"name": filename, "parents": [DRIVE_FOLDER_ID]}
-    mime = mimetypes.guess_type(local_path)[0] or "image/jpeg"
-    media = MediaFileUpload(local_path, mimetype=mime)
+    device_id = os.getenv("DEVICE_ID", "edge_dev3")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    blob_path = f"snapshots/{label}_{ts}.jpg"
 
-    uploaded = service.files().create(
-        body=file_metadata, media_body=media, fields="id, webViewLink"
-    ).execute()
+    bucket = storage.bucket()
+    blob = bucket.blob(blob_path)
+    blob.upload_from_filename(local_path, content_type="image/jpeg")
+    blob.make_public()
+    image_url = blob.public_url
 
-    print(f"[send] uploaded {filename} -> {uploaded.get('webViewLink')}")
-    return uploaded
+    db = firestore.client()
+    doc_ref = db.collection("events").add({
+        "device_id": device_id,
+        "label": label,
+        "timestamp": firestore.SERVER_TIMESTAMP,
+        "image_url": image_url,
+        "confidence": float(confidence),
+        "bbox_height_px": int(bbox_height_px),
+        "distance_estimate_m": float(distance_estimate_m),
+    })
+
+    print(f"[send] {device_id} {label} -> {image_url}")
+    return {"image_url": image_url, "doc_ref": doc_ref}

@@ -9,10 +9,7 @@ from send import upload_snapshot
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
-WINDOW_TITLE = "Edge Dev 3 - Person Detection"
-SNAPSHOT_DIR = "snapshots"
-CAMERA_INDEX = int(os.getenv("CAMERA_INDEX", "0"))
-MAX_SNAPSHOTS = int(os.getenv("MAX_SNAPSHOTS", "2"))   # hard cap per run
+SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), "snapshots")
 
 
 def save_snapshot(frame, label):
@@ -23,13 +20,24 @@ def save_snapshot(frame, label):
     return path
 
 
-def run():
-    model = load_model()
-    cap = open_camera(CAMERA_INDEX)
-    cv2.namedWindow(WINDOW_TITLE, cv2.WINDOW_AUTOSIZE)
+def _summarize(detections):
+    if not detections:
+        return 0.0, 0, 0.0
+    best_conf = max(d["conf"] for d in detections)
+    largest_bbox_h = max(d["bbox_height_px"] for d in detections)
+    positive_distances = [d["distance_m"] for d in detections if d["distance_m"] > 0]
+    closest_distance = min(positive_distances) if positive_distances else 0.0
+    return best_conf, largest_bbox_h, closest_distance
 
-    prev_person = False       # was a person in the previous frame?
-    snapshots_taken = 0       # total enter+leave events captured
+
+def run(window_title="Edge Dev 3 - Person Detection"):
+    camera_index = int(os.getenv("CAMERA_INDEX", "0"))
+
+    model = load_model()
+    cap = open_camera(camera_index)
+    cv2.namedWindow(window_title, cv2.WINDOW_AUTOSIZE)
+
+    prev_person = False
 
     try:
         while True:
@@ -38,24 +46,29 @@ def run():
                 print("Could not read frame")
                 continue
 
-            boxes = detect_persons(model, frame)
-            status, color, person_now = classify(boxes)
-            annotated = annotate_frame(frame.copy(), boxes, status, color)
+            detections = detect_persons(model, frame)
+            status, color, person_now = classify(detections)
+            annotated = annotate_frame(frame.copy(), detections, status, color)
 
-            # --- transition detection ---
-            if person_now != prev_person and snapshots_taken < MAX_SNAPSHOTS:
+            if person_now != prev_person:
                 label = "enter" if person_now else "leave"
                 path = save_snapshot(frame, label)
+                best_conf, largest_bbox_h, closest_distance = _summarize(detections)
                 print(f"[main] {label.upper()} event -> {path}")
                 try:
-                    upload_snapshot(path, label=label)
+                    upload_snapshot(
+                        path,
+                        label=label,
+                        confidence=best_conf,
+                        bbox_height_px=largest_bbox_h,
+                        distance_estimate_m=closest_distance,
+                    )
                 except Exception as e:
                     print(f"[main] upload failed: {e}")
-                snapshots_taken += 1
 
             prev_person = person_now
 
-            cv2.imshow(WINDOW_TITLE, annotated)
+            cv2.imshow(window_title, annotated)
             key = cv2.waitKey(10) & 0xFF
             if key == 27 or key == ord("q"):
                 break

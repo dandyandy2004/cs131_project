@@ -6,6 +6,8 @@ __pycache__/
 **/.env
 credentials.json
 **/credentials.json
+firebase_credentials.json
+**/firebase_credentials.json
 
 # local snapshots
 edge_dev3/snapshots/
