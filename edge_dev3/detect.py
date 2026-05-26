@@ -6,7 +6,7 @@ PERSON_CLASS = 0
 
 # Monocular distance estimation. Output is in FEET.
 # FOCAL_LENGTH_PX is a placeholder; calibrate with a known-distance reference shot.
-FOCAL_LENGTH_PX = 200.0
+FOCAL_LENGTH_PX = 600.0
 KNOWN_PERSON_HEIGHT_FT = 5.58  # ≈ 5'7"
 
 # Inference scale — smaller is faster, less accurate at distance.
