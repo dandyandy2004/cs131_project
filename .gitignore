@@ -12,5 +12,8 @@ firebase_credentials.json
 # local snapshots
 edge_dev3/snapshots/
 
+# auto-downloaded YOLO weights inside subfolders
+edge_dev*/yolov8n.pt
+
 # local test mode artifacts
 local_data/

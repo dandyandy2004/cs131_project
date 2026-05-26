@@ -4,35 +4,47 @@ from ultralytics import YOLO
 MODEL_PATH = "yolov8n.pt"
 PERSON_CLASS = 0
 
-# Monocular distance estimation constants.
+# Monocular distance estimation. Output is in FEET.
 # FOCAL_LENGTH_PX is a placeholder; calibrate with a known-distance reference shot.
 FOCAL_LENGTH_PX = 600.0
-KNOWN_PERSON_HEIGHT_M = 1.70
+KNOWN_PERSON_HEIGHT_FT = 5.58  # ≈ 5'7"
+
+# Inference scale — smaller is faster, less accurate at distance.
+INFER_IMGSZ = 320
 
 
 def load_model(path=MODEL_PATH):
-    return YOLO(path)
+    model = YOLO(path)
+    model.overrides["verbose"] = False
+    return model
 
 
 def estimate_distance(bbox_height_px):
     if bbox_height_px <= 0:
         return 0.0
-    return (KNOWN_PERSON_HEIGHT_M * FOCAL_LENGTH_PX) / float(bbox_height_px)
+    return (KNOWN_PERSON_HEIGHT_FT * FOCAL_LENGTH_PX) / float(bbox_height_px)
 
 
-def detect_persons(model, frame):
-    results = model(frame, classes=[PERSON_CLASS], verbose=False)
+def detect_persons(model, frame, imgsz=INFER_IMGSZ):
+    """Run YOLO on a downscaled copy of `frame` and scale boxes back to full
+    resolution. Returns a list of detection dicts."""
+    h, w = frame.shape[:2]
+    small = cv2.resize(frame, (imgsz, imgsz))
+    results = model(small, classes=[PERSON_CLASS], imgsz=imgsz, verbose=False)
     raw_boxes = results[0].boxes
+
+    sx, sy = w / imgsz, h / imgsz
     detections = []
     for box in raw_boxes:
-        x1, y1, x2, y2 = map(int, box.xyxy[0])
+        x1s, y1s, x2s, y2s = box.xyxy[0].tolist()
+        x1, y1, x2, y2 = int(x1s * sx), int(y1s * sy), int(x2s * sx), int(y2s * sy)
         conf = float(box.conf[0])
-        h = int(y2 - y1)
+        bh = int(y2 - y1)
         detections.append({
             "xyxy": [x1, y1, x2, y2],
             "conf": conf,
-            "bbox_height_px": h,
-            "distance_m": estimate_distance(h),
+            "bbox_height_px": bh,
+            "distance_ft": estimate_distance(bh),
         })
     return detections
 
@@ -47,11 +59,11 @@ def annotate_frame(frame, detections, status, status_color):
     for det in detections:
         x1, y1, x2, y2 = det["xyxy"]
         conf = det["conf"]
-        dist = det["distance_m"]
+        dist = det["distance_ft"]
         cv2.rectangle(frame, (x1, y1), (x2, y2), status_color, 2)
         cv2.putText(
             frame,
-            f"{dist:.1f}m",
+            f"{dist:.1f}ft",
             (x1, y1 - 28),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,

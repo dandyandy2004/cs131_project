@@ -28,7 +28,7 @@ def _init_sqlite():
             image_path TEXT NOT NULL,
             confidence REAL NOT NULL,
             bbox_height_px INTEGER NOT NULL,
-            distance_estimate_m REAL NOT NULL
+            distance_estimate_ft REAL NOT NULL
         )
         """
     )
@@ -36,13 +36,13 @@ def _init_sqlite():
     return conn
 
 
-def _upload_local(local_path, label, confidence, bbox_height_px, distance_estimate_m, device_id):
+def _upload_local(local_path, label, confidence, bbox_height_px, distance_estimate_ft, device_id):
     abs_path = os.path.abspath(local_path)
     ts = datetime.now().isoformat(timespec="seconds")
     conn = _init_sqlite()
     conn.execute(
         "INSERT INTO events "
-        "(device_id, label, timestamp, image_path, confidence, bbox_height_px, distance_estimate_m) "
+        "(device_id, label, timestamp, image_path, confidence, bbox_height_px, distance_estimate_ft) "
         "VALUES (?,?,?,?,?,?,?)",
         (
             device_id,
@@ -51,7 +51,7 @@ def _upload_local(local_path, label, confidence, bbox_height_px, distance_estima
             abs_path,
             float(confidence),
             int(bbox_height_px),
-            float(distance_estimate_m),
+            float(distance_estimate_ft),
         ),
     )
     conn.commit()
@@ -76,7 +76,7 @@ def _init_firebase():
     firebase_admin.initialize_app(cred, {"storageBucket": FIREBASE_STORAGE_BUCKET})
 
 
-def _upload_firebase(local_path, label, confidence, bbox_height_px, distance_estimate_m, device_id):
+def _upload_firebase(local_path, label, confidence, bbox_height_px, distance_estimate_ft, device_id):
     from firebase_admin import firestore, storage
 
     _init_firebase()
@@ -97,7 +97,7 @@ def _upload_firebase(local_path, label, confidence, bbox_height_px, distance_est
         "image_url": image_url,
         "confidence": float(confidence),
         "bbox_height_px": int(bbox_height_px),
-        "distance_estimate_m": float(distance_estimate_m),
+        "distance_estimate_ft": float(distance_estimate_ft),
     })
 
     print(f"[send] {device_id} {label} -> {image_url}")
@@ -109,14 +109,14 @@ def upload_snapshot(
     label="event",
     confidence=0.0,
     bbox_height_px=0,
-    distance_estimate_m=0.0,
+    distance_estimate_ft=0.0,
 ):
     """Persist a snapshot + event. Local SQLite if LOCAL_MODE=1, else Firebase."""
     device_id = os.getenv("DEVICE_ID", "edge_dev3")
     if LOCAL_MODE:
         return _upload_local(
-            local_path, label, confidence, bbox_height_px, distance_estimate_m, device_id
+            local_path, label, confidence, bbox_height_px, distance_estimate_ft, device_id
         )
     return _upload_firebase(
-        local_path, label, confidence, bbox_height_px, distance_estimate_m, device_id
+        local_path, label, confidence, bbox_height_px, distance_estimate_ft, device_id
     )

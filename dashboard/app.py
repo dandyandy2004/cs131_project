@@ -88,7 +88,7 @@ with col_latest:
         st.caption(f"timestamp: {latest['timestamp']}")
         cols = st.columns(3)
         cols[0].metric("Confidence", f"{latest['confidence']:.0%}")
-        cols[1].metric("Distance", f"{latest['distance_estimate_m']:.2f} m")
+        cols[1].metric("Distance", f"{latest['distance_estimate_ft']:.1f} ft")
         cols[2].metric("Bbox height", f"{latest['bbox_height_px']} px")
 
         img_path = latest.get("image_path") or ""
@@ -112,7 +112,7 @@ if events:
             "label": e["label"],
             "timestamp": e["timestamp"],
             "conf": round(e["confidence"], 3),
-            "dist (m)": round(e["distance_estimate_m"], 2),
+            "dist (ft)": round(e["distance_estimate_ft"], 1),
             "bbox h (px)": e["bbox_height_px"],
             "image": os.path.basename(e["image_path"]) if e.get("image_path") else "",
         }
