@@ -8,8 +8,8 @@ events and produces aggregate alerts.
 
 ## Tiers
 
-### 1. Edge (`edge_dev1/`, `edge_dev2/`, `edge_dev3/`)
-- Each device captures from a local camera (`cv2.VideoCapture`).
+### 1. Edge (`edge_dev3/`)
+- Captures from a local camera (`cv2.VideoCapture`).
 - Runs YOLOv8 nano (`yolov8n.pt`) locally, filtered to class 0 (person).
 - Computes a monocular distance estimate per detection in `detect.py`:
 
@@ -17,8 +17,10 @@ events and produces aggregate alerts.
 
 - On every GREEN↔RED transition: saves a local JPEG, then uploads to
   Firebase Cloud Storage and writes a Firestore event document.
-- `edge_dev1` and `edge_dev2` import the run loop from `edge_dev3` and
-  differ only in `DEVICE_ID` and window title.
+
+`edge_dev1/` and `edge_dev2/` exist as **isolated placeholders** — empty
+stub files reserved for future independent implementations. They are not
+wired into the system today.
 
 ### 2. Cloud (Firebase)
 - **Cloud Storage** bucket holds snapshots under `snapshots/<label>_<ts>.jpg`.
@@ -39,14 +41,14 @@ events and produces aggregate alerts.
 ## Data Flow
 
 ```
- ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
- │  edge_dev1   │   │  edge_dev2   │   │  edge_dev3   │
- │  cam→detect  │   │  cam→detect  │   │  cam→detect  │
- │   ↓ transit. │   │   ↓ transit. │   │   ↓ transit. │
- │   save jpg   │   │   save jpg   │   │   save jpg   │
- └──────┬───────┘   └──────┬───────┘   └──────┬───────┘
-        │ upload           │ upload           │ upload
-        ▼                  ▼                  ▼
+                          ┌──────────────┐
+                          │  edge_dev3   │
+                          │  cam→detect  │
+                          │   ↓ transit. │
+                          │   save jpg   │
+                          └──────┬───────┘
+                                 │ upload
+                                 ▼
  ┌─────────────────────────────────────────────────────┐
  │              Firebase Cloud Storage                 │
  │           snapshots/<label>_<ts>.jpg                │
@@ -72,7 +74,7 @@ events and produces aggregate alerts.
 
 ## Environment Variables
 
-### Edge devices (`edge_dev1/.env`, `edge_dev2/.env`, `edge_dev3/.env`)
+### Edge device (`edge_dev3/.env`)
 | Var | Required | Default | Purpose |
 |---|---|---|---|
 | `FIREBASE_CREDENTIALS` | yes | `firebase_credentials.json` | Path to service account JSON |
@@ -90,8 +92,7 @@ events and produces aggregate alerts.
 
 ## Distance Estimation
 
-All distance math lives in `edge_dev3/detect.py` and is reused by every
-edge device through import. Two tunables:
+All distance math lives in `edge_dev3/detect.py`. Two tunables:
 
 - `FOCAL_LENGTH_PX = 600.0` — placeholder; calibrate per camera.
 - `KNOWN_PERSON_HEIGHT_M = 1.70` — assumed average human height.
