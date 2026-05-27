@@ -1,19 +1,18 @@
 # How to Run `edge_dev3`
 
-`edge_dev3` is the webcam-based person-detection edge node. It runs YOLOv8
-locally, watches for a person entering or leaving the frame, and uploads a
-snapshot to Google Drive on each transition (capped at 2 uploads per run:
-one ENTER, one LEAVE).
+`edge_dev3` is a webcam-based person-detection edge node. It runs YOLOv8
+locally, watches for a person entering or leaving the frame, and on each
+transition it uploads a snapshot to Firebase Cloud Storage **and** writes
+an event document to Firestore (collection `events`).
 
 ---
 
 ## 1. Prerequisites
 
 - Python 3.9+
-- A working webcam (index 0)
-- A Google Cloud project with the **Google Drive API** enabled
-- A **service account** + downloaded JSON key
-- A Google Drive folder that you have **shared with the service account's email**
+- A working webcam
+- A Firebase project (or existing Google Cloud project linked to Firebase)
+- A service account JSON key with appropriate roles
 
 ---
 
@@ -22,7 +21,7 @@ one ENTER, one LEAVE).
 From the repo root:
 
 ```bash
-pip install ultralytics opencv-python google-api-python-client google-auth python-dotenv
+pip install -r requirements.txt
 ```
 
 The first run of YOLO will auto-download `yolov8n.pt` (~6 MB) if it isn't
@@ -30,35 +29,39 @@ already in the project root.
 
 ---
 
-## 3. Set up Google credentials
+## 3. Set up Firebase
 
-1. In Google Cloud Console, create a **service account** under your project.
-2. Generate a **JSON key** for it and save it as:
+1. Go to the [Firebase Console](https://console.firebase.google.com/) and
+   **create a project** (or select an existing Google Cloud project).
+2. In the console, enable **Cloud Storage** and **Cloud Firestore**.
+3. In the Google Cloud Console (IAM & Admin → Service Accounts), create a
+   service account with these roles:
+   - **Firebase Admin**
+   - **Cloud Datastore User**
+   - **Storage Object Admin**
+4. Generate a **JSON key** for that service account and save it as:
 
    ```
-   edge_dev3/credentials.json
+   edge_dev3/firebase_credentials.json
    ```
 
-3. In Google Drive, create a folder (e.g. `cs131_snapshots`) and **share it
-   with the service account's email address** (Editor access).
-4. Copy that folder's ID from the URL
-   (`https://drive.google.com/drive/folders/<FOLDER_ID>`).
-5. Copy the example env file and fill it in:
+5. Copy the env template and fill it in:
 
    ```bash
    cp edge_dev3/.env.example edge_dev3/.env
    ```
 
-   Then edit `edge_dev3/.env`:
+   Edit `edge_dev3/.env`:
 
    ```ini
-   GOOGLE_APPLICATION_CREDENTIALS=credentials.json
-   DRIVE_FOLDER_ID=<paste your folder ID here>
+   FIREBASE_CREDENTIALS=firebase_credentials.json
+   FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+   DEVICE_ID=edge_dev3
    CAMERA_INDEX=0
-   MAX_SNAPSHOTS=2
    ```
 
-> ⚠ Both `.env` and `credentials.json` are already in `.gitignore` — do **not** commit them.
+> ⚠ Both `.env` and `firebase_credentials.json` are already in `.gitignore` —
+> do **not** commit them.
 
 ---
 
@@ -69,9 +72,11 @@ cd edge_dev3
 python main.py
 ```
 
-You'll see a webcam window labeled **"Edge Dev 3 - Person Detection"**.
+You'll see a webcam window titled **"Edge Dev 3 - Person Detection"**.
 - **GREEN** banner: no person detected
 - **RED** banner: at least one person detected
+- Each bounding box is labeled with the estimated distance in meters (e.g.
+  `1.8m`) and the confidence score.
 
 Press `q` or `Esc` to quit.
 
@@ -83,9 +88,11 @@ Press `q` or `Esc` to quit.
   - GREEN → RED  ⇒ saved as `enter_<timestamp>.jpg`
   - RED → GREEN  ⇒ saved as `leave_<timestamp>.jpg`
 - Snapshots are saved locally to `edge_dev3/snapshots/` **and** uploaded to
-  your Google Drive folder.
-- Hard limit: **2 uploads per run** (`MAX_SNAPSHOTS = 2` in `main.py`).
-  Restart the script to reset the counter.
+  Firebase Cloud Storage at `snapshots/<label>_<timestamp>.jpg`.
+- A Firestore document is written to the `events` collection with:
+  `device_id`, `label`, `timestamp` (server time), `image_url`,
+  `confidence`, `bbox_height_px`, `distance_estimate_m`.
+- **No upload cap** — every transition uploads.
 
 ---
 
@@ -93,8 +100,11 @@ Press `q` or `Esc` to quit.
 
 | Problem | Likely fix |
 |---|---|
-| `Unable to open camera at index 0` | Try `open_camera(1)` in `main.py`, or close other apps using the webcam |
-| `FileNotFoundError: credentials.json` | The JSON key isn't where `send.py` expects — check the path |
-| `HttpError 404` from Drive | The folder ID is wrong, or you didn't share the folder with the service account email |
-| `HttpError 403` from Drive | Drive API not enabled on the project, or the service account lacks access to the folder |
+| `Unable to open camera at index 0` | Try `CAMERA_INDEX=1` in `.env`, or close other apps using the webcam |
+| `FileNotFoundError: firebase_credentials.json` | The JSON key isn't where `send.py` expects — check `FIREBASE_CREDENTIALS` in `.env` |
+| `FIREBASE_STORAGE_BUCKET is not set` | Add `FIREBASE_STORAGE_BUCKET=<your-bucket>` to `.env` |
+| `google.auth.exceptions.RefreshError` / `invalid_grant` | Service account key is corrupted or its project is disabled — re-download the JSON key |
+| `403 PERMISSION_DENIED` on Firestore | Service account lacks **Cloud Datastore User** role |
+| `403` on Cloud Storage upload | Service account lacks **Storage Object Admin** role, or the bucket name in `FIREBASE_STORAGE_BUCKET` is wrong |
+| `The default Firebase app already exists` | `firebase_admin.initialize_app` was called twice — should not happen with the current code; restart the process |
 | Upload silently skipped | Check console — uploads are wrapped in try/except so detection keeps running |

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>CS131 Security Dashboard</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    #gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: white;
+      padding: 10px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px gray;
+    }
+
+    img {
+      width: 100%;
+      border-radius: 8px;
+    }
+  </style>
+
+  <script type="module">
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
+    import {
+      getFirestore,
+      collection,
+      query,
+      orderBy,
+      onSnapshot
+
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+
+      apiKey: "AIzaSyCTf4qvDWtQWuhzTRD2w7yqse4VDN-eTNU",
+
+      authDomain: "cs131-project-496922.firebaseapp.com",
+
+      projectId: "cs131-project-496922",
+
+      storageBucket: "cs131-project-496922.firebasestorage.app",
+
+    };
+
+    const app = initializeApp(firebaseConfig);
+
+    const db = getFirestore(app);
+
+    const gallery = document.getElementById("gallery");
+
+    const q = query(
+      collection(db, "events"),
+      orderBy("timestamp", "desc")
+    );
+
+    onSnapshot(q, (snapshot) => {
+
+      gallery.innerHTML = "";
+
+      snapshot.forEach((doc) => {
+
+        const data = doc.data();
+
+        gallery.innerHTML += `
+
+          <div class="card">
+
+            <h2>${data.label}</h2>
+
+            <p><b>Device:</b> ${data.device_id}</p>
+
+            <p><b>Distance:</b> ${data.distance_estimate_m}m</p>
+
+            <img src="${data.image_url}">
+
+          </div>
+
+        `;
+      });
+    });
+
+  </script>
+
+</head>
+
+<body>
+
+  <h1>360° Edge Security Dashboard</h1>
+
+  <div id="gallery"></div>
+
+</body>
+
+</html>
