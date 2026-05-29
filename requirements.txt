@@ -8,3 +8,4 @@ insightface>=0.7.3
 # https://elinux.org/Jetson_Zoo#ONNX_Runtime
 # For CPU-only (fallback): pip install onnxruntime
 onnxruntime>=1.16.0
+requests>=2.31.0

@@ -1,10 +1,11 @@
-// Real-time view of the `events` Firestore collection written by edge_dev3.
+// Real-time dashboard — status driven by fog layer, events table from edge devices.
 // Uses the Firebase Web SDK directly from the CDN — no build step.
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import {
   getFirestore,
   collection,
+  doc,
   query,
   orderBy,
   limit,
@@ -12,16 +13,15 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
-const ALERT_WINDOW_MS = 30_000;
 const EVENT_LIMIT = 50;
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db  = getFirestore(app);
 
-const statusEl = document.getElementById("status");
-const latestImgEl = document.getElementById("latest-img");
+const statusEl     = document.getElementById("status");
+const latestImgEl  = document.getElementById("latest-img");
 const latestMetaEl = document.getElementById("latest-meta");
-const tableBodyEl = document.querySelector("#events tbody");
+const tableBodyEl  = document.querySelector("#events tbody");
 const connStatusEl = document.getElementById("conn-status");
 
 function tsToDate(ts) {
@@ -35,45 +35,42 @@ function fmtTime(d) {
   return d ? d.toLocaleString() : "—";
 }
 
-function renderStatus(events) {
-  const cutoff = Date.now() - ALERT_WINDOW_MS;
-  const red = events.some((e) => {
-    if (e.label !== "enter") return false;
-    const d = tsToDate(e.timestamp);
-    return d && d.getTime() >= cutoff;
-  });
-  statusEl.textContent = red ? "🔴 RED" : "🟢 GREEN";
-  statusEl.className = red ? "red" : "green";
-}
+// ── Status badge — driven by fog/combined_status/current ──────────────────────
+onSnapshot(
+  doc(db, "combined_status", "current"),
+  (docSnap) => {
+    if (!docSnap.exists()) return;
+    const data = docSnap.data();
+    const red  = data.status === "RED";
 
-function renderLatest(events) {
-  if (!events.length) {
-    latestImgEl.removeAttribute("src");
-    latestMetaEl.textContent = "No events yet.";
-    return;
-  }
-  const e = events[0];
-  if (e.image_url) {
-    latestImgEl.src = e.image_url;
-  } else {
-    latestImgEl.removeAttribute("src");
-  }
-  const conf = ((e.confidence ?? 0) * 100).toFixed(0);
-  const identity = e.identity ?? "unknown";
-  latestMetaEl.innerHTML = `
-    <div><strong>${e.device_id ?? "?"}</strong> — ${(e.label ?? "?").toUpperCase()}</div>
-    <div>${fmtTime(tsToDate(e.timestamp))}</div>
-    <div>Confidence: ${conf}%</div>
-    <div>Identity: ${identity}</div>
-  `;
-}
+    statusEl.textContent = red ? "🔴 RED" : "🟢 GREEN";
+    statusEl.className   = red ? "red"    : "green";
 
+    // Show 360° combined image when a blacklist hit fires
+    if (data.combined_image_url) {
+      latestImgEl.src = data.combined_image_url;
+      const identity  = data.identity ?? "unknown";
+      const devices   = Object.entries(data.devices ?? {})
+        .map(([d, v]) => `${d}: ${v ? "RED" : "GREEN"}`)
+        .join(", ");
+      latestMetaEl.innerHTML = `
+        <div><strong>360° Combined View</strong></div>
+        <div>${fmtTime(tsToDate(data.timestamp))}</div>
+        <div>Identity: <strong>${identity}</strong></div>
+        <div>${devices}</div>
+      `;
+    }
+  },
+  (err) => console.error("[combined_status]", err),
+);
+
+// ── Events table — all individual device events ───────────────────────────────
 function renderTable(events) {
   tableBodyEl.innerHTML = "";
   for (const e of events) {
-    const tr = document.createElement("tr");
-    const conf = ((e.confidence ?? 0) * 100).toFixed(0);
-    const identity = e.identity ?? "unknown";
+    const tr       = document.createElement("tr");
+    const conf     = ((e.confidence ?? 0) * 100).toFixed(0);
+    const identity = e.identity ?? "—";
     tr.innerHTML = `
       <td>${e.device_id ?? ""}</td>
       <td>${e.label ?? ""}</td>
@@ -85,20 +82,11 @@ function renderTable(events) {
   }
 }
 
-const q = query(
-  collection(db, "events"),
-  orderBy("timestamp", "desc"),
-  limit(EVENT_LIMIT),
-);
-
 onSnapshot(
-  q,
+  query(collection(db, "events"), orderBy("timestamp", "desc"), limit(EVENT_LIMIT)),
   (snapshot) => {
-    const events = snapshot.docs.map((d) => d.data());
-    renderStatus(events);
-    renderLatest(events);
-    renderTable(events);
-    connStatusEl.textContent = `live · ${events.length} events`;
+    renderTable(snapshot.docs.map((d) => d.data()));
+    connStatusEl.textContent = `live · ${snapshot.size} events`;
   },
   (err) => {
     console.error("Firestore listener error:", err);
