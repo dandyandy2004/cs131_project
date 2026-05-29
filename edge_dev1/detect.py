@@ -59,17 +59,22 @@ def classify(detections):
     known = [d["identity"] for d in detections if d["identity"]]
     if known:
         return "RED - " + ", ".join(sorted(set(known))), (0, 0, 255), True
-    return "RED - unknown person", (0, 0, 255), True
+    return "GREEN - unknown person", (0, 255, 0), False
 
 
 def annotate_frame(frame, detections, status, status_color):
     for det in detections:
         x1, y1, x2, y2 = det["xyxy"]
         conf = det["conf"]
-        name_label = det["identity"] if det["identity"] else "unknown"
-        cv2.rectangle(frame, (x1, y1), (x2, y2), status_color, 2)
+        if det["identity"]:
+            box_color = (0, 0, 255)   # red for blacklisted
+            name_label = det["identity"]
+        else:
+            box_color = (0, 255, 0)   # green for unknown
+            name_label = "unknown"
+        cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
         cv2.putText(frame, name_label, (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, box_color, 2)
         cv2.putText(frame, f"person {conf:.0%}", (x1, y2 + 20),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
     cv2.putText(frame, status, (20, 40),
