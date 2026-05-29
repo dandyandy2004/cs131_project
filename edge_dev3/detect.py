@@ -1,15 +1,9 @@
 import cv2
 from ultralytics import YOLO
+from blacklist import get_app, match_face
 
 MODEL_PATH = "yolov8n.pt"
 PERSON_CLASS = 0
-
-# Monocular distance estimation. Output is in FEET.
-# FOCAL_LENGTH_PX is a placeholder; calibrate with a known-distance reference shot.
-FOCAL_LENGTH_PX = 600.0
-KNOWN_PERSON_HEIGHT_FT = 5.58  # ≈ 5'7"
-
-# Inference scale — smaller is faster, less accurate at distance.
 INFER_IMGSZ = 320
 
 
@@ -19,15 +13,8 @@ def load_model(path=MODEL_PATH):
     return model
 
 
-def estimate_distance(bbox_height_px):
-    if bbox_height_px <= 0:
-        return 0.0
-    return (KNOWN_PERSON_HEIGHT_FT * FOCAL_LENGTH_PX) / float(bbox_height_px)
-
-
 def detect_persons(model, frame, imgsz=INFER_IMGSZ):
-    """Run YOLO on a downscaled copy of `frame` and scale boxes back to full
-    resolution. Returns a list of detection dicts."""
+    """Run YOLO on a downscaled copy of `frame` and scale boxes back to full resolution."""
     h, w = frame.shape[:2]
     small = cv2.resize(frame, (imgsz, imgsz))
     results = model(small, classes=[PERSON_CLASS], imgsz=imgsz, verbose=False)
@@ -38,54 +25,53 @@ def detect_persons(model, frame, imgsz=INFER_IMGSZ):
     for box in raw_boxes:
         x1s, y1s, x2s, y2s = box.xyxy[0].tolist()
         x1, y1, x2, y2 = int(x1s * sx), int(y1s * sy), int(x2s * sx), int(y2s * sy)
-        conf = float(box.conf[0])
-        bh = int(y2 - y1)
         detections.append({
             "xyxy": [x1, y1, x2, y2],
-            "conf": conf,
-            "bbox_height_px": bh,
-            "distance_ft": estimate_distance(bh),
+            "conf": float(box.conf[0]),
+            "identity": None,
+            "face_sim": 0.0,
         })
     return detections
 
 
+def identify_faces(frame, detections):
+    """Run InsightFace on frame, assign blacklist identity to each YOLO person box."""
+    if not detections:
+        return detections
+    faces = get_app().get(frame)
+    for face in faces:
+        fx1, fy1, fx2, fy2 = face.bbox.astype(int)
+        face_cx = (fx1 + fx2) / 2
+        face_cy = (fy1 + fy2) / 2
+        for det in detections:
+            x1, y1, x2, y2 = det["xyxy"]
+            if x1 <= face_cx <= x2 and y1 <= face_cy <= y2:
+                name, sim = match_face(face.normed_embedding)
+                det["identity"] = name
+                det["face_sim"] = sim
+                break
+    return detections
+
+
 def classify(detections):
-    if len(detections) > 0:
-        return "RED - person detected", (0, 0, 255), True
-    return "GREEN - clear", (0, 255, 0), False
+    if not detections:
+        return "GREEN - clear", (0, 255, 0), False
+    known = [d["identity"] for d in detections if d["identity"]]
+    if known:
+        return "RED - " + ", ".join(sorted(set(known))), (0, 0, 255), True
+    return "RED - unknown person", (0, 0, 255), True
 
 
 def annotate_frame(frame, detections, status, status_color):
     for det in detections:
         x1, y1, x2, y2 = det["xyxy"]
         conf = det["conf"]
-        dist = det["distance_ft"]
+        name_label = det["identity"] if det["identity"] else "unknown"
         cv2.rectangle(frame, (x1, y1), (x2, y2), status_color, 2)
-        cv2.putText(
-            frame,
-            f"{dist:.1f}ft",
-            (x1, y1 - 28),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (255, 255, 255),
-            2,
-        )
-        cv2.putText(
-            frame,
-            f"person {conf:.0%}",
-            (x1, y1 - 10),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            status_color,
-            2,
-        )
-    cv2.putText(
-        frame,
-        status,
-        (20, 40),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1,
-        status_color,
-        2,
-    )
+        cv2.putText(frame, name_label, (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
+        cv2.putText(frame, f"person {conf:.0%}", (x1, y2 + 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+    cv2.putText(frame, status, (20, 40),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, status_color, 2)
     return frame

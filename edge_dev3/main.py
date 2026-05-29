@@ -4,15 +4,13 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from cam import open_camera, read_frame, release_camera
-from detect import load_model, detect_persons, classify, annotate_frame
+from detect import load_model, detect_persons, identify_faces, classify, annotate_frame
+from blacklist import load_blacklist
 from send import upload_snapshot
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), "snapshots")
-
-# Run YOLO every N captured frames. Display still updates every frame using
-# cached boxes, so the preview stays smooth.
 INFER_EVERY = int(os.getenv("INFER_EVERY", "3"))
 
 
@@ -26,18 +24,17 @@ def save_snapshot(frame, label):
 
 def _summarize(detections):
     if not detections:
-        return 0.0, 0, 0.0
+        return 0.0, None
     best_conf = max(d["conf"] for d in detections)
-    largest_bbox_h = max(d["bbox_height_px"] for d in detections)
-    positive = [d["distance_ft"] for d in detections if d["distance_ft"] > 0]
-    closest = min(positive) if positive else 0.0
-    return best_conf, largest_bbox_h, closest
+    known = [d["identity"] for d in detections if d["identity"]]
+    return best_conf, known[0] if known else None
 
 
 def run(window_title="Edge Dev 3 - Person Detection"):
     camera_index = int(os.getenv("CAMERA_INDEX", "0"))
 
     model = load_model()
+    load_blacklist()
     stream = open_camera(camera_index)
     cv2.namedWindow(window_title, cv2.WINDOW_AUTOSIZE)
 
@@ -55,20 +52,20 @@ def run(window_title="Edge Dev 3 - Person Detection"):
 
             if frame_count % INFER_EVERY == 0:
                 detections = detect_persons(model, frame)
+                identify_faces(frame, detections)
                 status, color, person_now = classify(detections)
 
                 if person_now != prev_person:
                     label = "enter" if person_now else "leave"
                     path = save_snapshot(frame, label)
-                    best_conf, largest_bbox_h, closest = _summarize(detections)
-                    print(f"[main] {label.upper()} event -> {path}")
+                    best_conf, matched_identity = _summarize(detections)
+                    print(f"[main] {label.upper()} event -> {path}  identity={matched_identity}")
                     try:
                         upload_snapshot(
                             path,
                             label=label,
                             confidence=best_conf,
-                            bbox_height_px=largest_bbox_h,
-                            distance_estimate_ft=closest,
+                            matched_identity=matched_identity,
                         )
                     except Exception as e:
                         print(f"[main] upload failed: {e}")

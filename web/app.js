@@ -59,13 +59,12 @@ function renderLatest(events) {
     latestImgEl.removeAttribute("src");
   }
   const conf = ((e.confidence ?? 0) * 100).toFixed(0);
-  const dist = (e.distance_estimate_ft ?? 0).toFixed(1);
+  const identity = e.identity ?? "unknown";
   latestMetaEl.innerHTML = `
     <div><strong>${e.device_id ?? "?"}</strong> — ${(e.label ?? "?").toUpperCase()}</div>
     <div>${fmtTime(tsToDate(e.timestamp))}</div>
     <div>Confidence: ${conf}%</div>
-    <div>Distance: ${dist} ft</div>
-    <div>Bbox height: ${e.bbox_height_px ?? 0} px</div>
+    <div>Identity: ${identity}</div>
   `;
 }
 
@@ -74,14 +73,13 @@ function renderTable(events) {
   for (const e of events) {
     const tr = document.createElement("tr");
     const conf = ((e.confidence ?? 0) * 100).toFixed(0);
-    const dist = (e.distance_estimate_ft ?? 0).toFixed(1);
+    const identity = e.identity ?? "unknown";
     tr.innerHTML = `
       <td>${e.device_id ?? ""}</td>
       <td>${e.label ?? ""}</td>
       <td>${fmtTime(tsToDate(e.timestamp))}</td>
       <td>${conf}%</td>
-      <td>${dist}</td>
-      <td>${e.bbox_height_px ?? 0}</td>
+      <td>${identity}</td>
     `;
     tableBodyEl.appendChild(tr);
   }

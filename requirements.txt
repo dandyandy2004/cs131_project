@@ -3,3 +3,8 @@ opencv-python==4.10.0.84
 firebase-admin==6.5.0
 google-auth==2.35.0
 python-dotenv==1.0.1
+insightface>=0.7.3
+# On Jetson Nano, install onnxruntime from NVIDIA's pre-built wheel for GPU acceleration:
+# https://elinux.org/Jetson_Zoo#ONNX_Runtime
+# For CPU-only (fallback): pip install onnxruntime
+onnxruntime>=1.16.0
