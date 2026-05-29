@@ -41,7 +41,7 @@ def run(window_title="Edge Dev 3 - Person Detection"):
     stream = open_camera(camera_index)
     cv2.namedWindow(window_title, cv2.WINDOW_AUTOSIZE)
 
-    prev_person = False
+    prev_person_count = 0
     detections = []
     status, color, person_now = "GREEN - clear", (0, 255, 0), False
     frame_count = 0
@@ -57,11 +57,15 @@ def run(window_title="Edge Dev 3 - Person Detection"):
                 detections = detect_persons(model, frame)
                 status, color, person_now = classify(detections)
 
-                if person_now != prev_person:
-                    label = "enter" if person_now else "leave"
+                person_count = len(detections)
+
+                if person_count > prev_person_count:
+                    label = "new_person"
                     path = save_snapshot(frame, label)
                     best_conf, largest_bbox_h, closest = _summarize(detections)
-                    print(f"[main] {label.upper()} event -> {path}")
+
+                    print(f"[main] NEW PERSON event -> {path}")
+
                     try:
                         upload_snapshot(
                             path,
@@ -72,7 +76,8 @@ def run(window_title="Edge Dev 3 - Person Detection"):
                         )
                     except Exception as e:
                         print(f"[main] upload failed: {e}")
-                    prev_person = person_now
+
+                    prev_person_count = person_count
 
             annotated = annotate_frame(frame.copy(), detections, status, color)
             cv2.imshow(window_title, annotated)
