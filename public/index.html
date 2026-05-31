@@ -79,19 +79,12 @@
         const data = doc.data();
 
         gallery.innerHTML += `
-
           <div class="card">
-
             <h2>${data.label}</h2>
-
             <p><b>Device:</b> ${data.device_id}</p>
-
-            <p><b>Distance:</b> ${data.distance_estimate_m}m</p>
-
+            <p><b>Distance:</b> ${data.distance_estimate_ft ? data.distance_estimate_ft.toFixed(1) : "N/A"} ft</p>
             <img src="${data.image_url}">
-
           </div>
-
         `;
       });
     });
