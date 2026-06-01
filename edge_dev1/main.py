@@ -25,19 +25,30 @@ def save_snapshot(frame, label):
 def _summarize(detections):
     if not detections:
         return 0.0, None
+
     best_conf = max(d["conf"] for d in detections)
     known = [d["identity"] for d in detections if d["identity"]]
+
     return best_conf, known[0] if known else None
 
 
-def _fire_event(frame, label, detections):
+def _fire_event(frame, label, detections, status_value):
     path = save_snapshot(frame, label)
     best_conf, matched_identity = _summarize(detections)
-    print(f"[main] {label.upper()} -> identity={matched_identity}")
+
+    print(f"[main] {label.upper()} -> status={status_value}, identity={matched_identity}")
+
     try:
-        upload_snapshot(path, label=label, confidence=best_conf, matched_identity=matched_identity)
+        upload_snapshot(
+            path,
+            label=label,
+            confidence=best_conf,
+            matched_identity=matched_identity,
+            status=status_value
+        )
     except Exception as e:
         print(f"[main] upload failed: {e}")
+
     return matched_identity
 
 
@@ -47,40 +58,63 @@ def run(window_title="Edge Dev 1 - Person Detection"):
     model = load_model()
     load_blacklist()
     stream = open_camera(camera_index)
+
     cv2.namedWindow(window_title, cv2.WINDOW_AUTOSIZE)
 
-    prev_person = False
+    prev_red = False
     prev_identity = None
+
     detections = []
-    status, color = "GREEN - clear", (0, 255, 0)
+    status_text = "GREEN - clear"
+    color = (0, 255, 0)
     frame_count = 0
 
     try:
         while True:
             frame = read_frame(stream)
+
             if frame is None:
                 continue
+
             frame_count += 1
 
             if frame_count % INFER_EVERY == 0:
                 detections = detect_persons(model, frame)
                 identify_faces(frame, detections)
-                status, color, person_now = classify(detections)
+
+                status_text, color, is_red = classify(detections)
                 _, matched_identity = _summarize(detections)
 
-                if person_now != prev_person:
-                    label = "enter" if person_now else "leave"
-                    prev_identity = _fire_event(frame, label, detections) if person_now else None
-                    prev_person = person_now
+                status_value = "red" if is_red else "green"
 
-                elif person_now and matched_identity is not None and matched_identity != prev_identity:
-                    prev_identity = _fire_event(frame, "enter", detections)
+                if is_red != prev_red:
+                    label = "red" if is_red else "green"
 
-            annotated = annotate_frame(frame.copy(), detections, status, color)
+                    prev_identity = _fire_event(
+                        frame,
+                        label,
+                        detections,
+                        status_value
+                    )
+
+                    prev_red = is_red
+
+                elif is_red and matched_identity is not None and matched_identity != prev_identity:
+                    prev_identity = _fire_event(
+                        frame,
+                        "red",
+                        detections,
+                        "red"
+                    )
+
+            annotated = annotate_frame(frame.copy(), detections, status_text, color)
             cv2.imshow(window_title, annotated)
+
             key = cv2.waitKey(1) & 0xFF
+
             if key == 27 or key == ord("q"):
                 break
+
     finally:
         release_camera(stream)
 
