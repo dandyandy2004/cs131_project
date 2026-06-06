@@ -8,5 +8,13 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+    match /combined_status/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /combined_alerts/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }
