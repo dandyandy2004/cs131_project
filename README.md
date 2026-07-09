@@ -250,6 +250,25 @@ The demonstration includes:
 
 ---
 
+## 🌐 Live Web Application
+
+View the live dashboard here:
+
+**https://cs131-project-496922.web.app/**
+
+The web application displays:
+
+* 🟢 Live RED/GREEN security status
+* 📸 Latest captured snapshot
+* 📋 Recent detection events
+* 👤 Identified blacklist matches
+* 📊 Detection confidence
+* 🕒 Event timestamps
+
+The dashboard is hosted using **Firebase Hosting** and updates automatically through **Cloud Firestore's real-time listeners**, allowing users to monitor the surveillance system remotely.
+
+---
+
 ## 🔮 Future Improvements
 
 * TensorRT optimization
