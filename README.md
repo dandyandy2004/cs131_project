@@ -1,95 +1,290 @@
-# Distributed Edge-Based 360° Surveillance System
+# Sentry 360: 360° Security Camera
 
-## Overview
-This project implements a distributed edge-computing surveillance system using two NVIDIA Jetson Nanos, each with a 180° camera, to provide full 360° environmental awareness.
+**Real-Time 360° Surveillance via Distributed Edge Intelligence**
 
-Each device performs local person detection and facial recognition against a blacklist of known individuals. A fog coordination layer fuses both devices' results, stitches a combined 360° snapshot on alert, and drives a physical LED indicator. Only meaningful events are sent to the cloud.
-
----
-
-## Problem
-Traditional surveillance systems have:
-- Limited camera coverage and blind spots
-- High latency from cloud-based processing
-- Excessive bandwidth usage from continuous streaming
-- Poor real-time response capabilities
-- No ability to identify specific known individuals
+A distributed edge surveillance system developed for **CS131 – Edge Computing** at the **University of California, Riverside**. The project combines real-time AI inference with cloud services to provide intelligent, low-latency security monitoring while minimizing bandwidth usage. The project architecture and goals are summarized in the accompanying poster.
 
 ---
 
-## Solution
-Our system uses multiple edge devices that:
-- Perform local person detection and facial recognition
-- Collaborate to provide 360° coverage
-- Send only important events to the cloud
-- Generate real-time alert indicators and a combined 360° snapshot
+## 📖 Overview
 
-### Alert Logic
-- 🟢 GREEN → No blacklisted person detected by either camera
-- 🔴 RED → A blacklisted (enrolled) person identified on either camera
+Traditional security systems rely heavily on cloud processing, introducing latency and requiring continuous video streaming. Sentry 360 addresses these issues by performing AI inference directly on edge devices and only sending event information to the cloud.
 
-Unknown persons are detected and annotated locally but do not trigger a system alert.
+The system consists of two NVIDIA Jetson Nano devices, each monitoring approximately 180° of coverage, creating a combined 360° surveillance system. YOLOv8 performs person detection locally while InsightFace identifies known blacklisted individuals. Detection events and snapshots are uploaded to Firebase, where a live dashboard updates automatically.
 
 ---
 
-## System Architecture
+## ✨ Features
 
-### Edge Devices (`edge_dev1/`, `edge_dev2/`)
-Each Jetson Nano:
-- Captures video via a threaded background frame grabber (`cam.py`)
-- Runs YOLOv8n person detection on every 3rd frame (`detect.py`)
-- Runs InsightFace (`buffalo_s`) facial recognition and matches against a local blacklist (`blacklist.py`)
-- Re-fires an enter event if a previously unknown person is later identified as blacklisted
-- Uploads snapshots and event metadata to Firebase on state transitions (`send.py`)
-
-### Fog Layer (`fog/`)
-- Listens to both devices' Firestore events in real time (`receive.py`)
-- Goes RED only when a blacklisted person is identified on either device (`decision.py`)
-- On alert: downloads the latest snapshot from each device, stitches them side-by-side into a 360° JPEG, and uploads to Cloud Storage
-- Writes `combined_status/current` and `combined_alerts` to Firestore
-- Drives a physical RED/GREEN LED via Jetson GPIO (`main.py`)
-
-### Cloud Service (Firebase)
-- Cloud Storage stores individual snapshots and 360° combined images
-- Firestore stores per-device events, combined status, and alert history
-- Firebase Hosting serves the real-time web dashboard
-
-### Web Dashboard (`web/`)
-- Status badge driven by the fog layer's `combined_status/current` decision
-- Displays the 360° combined image on blacklist alert
-- Event table shows all individual device events in real time
+* Real-time person detection using YOLOv8
+* Face recognition with InsightFace
+* Blacklist matching
+* Event-driven image capture
+* Firebase Cloud Storage image uploads
+* Firestore event logging
+* Live web dashboard
+* Distributed edge computing architecture
+* Supports multiple edge devices
 
 ---
 
-## Why Edge Computing?
-- Local processing reduces latency
-- Less cloud dependency
-- Lower bandwidth usage
-- Real-time response
-- Scalable distributed system
+## 🛠 Technologies
+
+### Programming Languages
+
+* Python
+* JavaScript
+* HTML
+* CSS
+
+### AI / Computer Vision
+
+* Ultralytics YOLOv8
+* InsightFace
+* OpenCV
+
+### Cloud
+
+* Firebase Firestore
+* Firebase Cloud Storage
+* Firebase Hosting
+
+### Hardware
+
+* NVIDIA Jetson Nano
+* USB Webcam
+* Raspberry Pi compatible peripherals
+* 3D Printed Enclosure
 
 ---
 
-## Technologies
-- Python 3.8+
-- YOLOv8n (Ultralytics) — person detection
-- InsightFace `buffalo_s` + ONNX Runtime — facial recognition
-- OpenCV — frame capture, annotation, image stitching
-- Firebase Admin SDK — cloud upload from edge and fog
-- Firebase Web SDK — real-time dashboard (no build step)
-- Jetson.GPIO — physical LED output
-- NVIDIA Jetson Nano × 2 — edge inference hardware
+## 🏗 System Architecture
+
+```text
+USB Camera
+      │
+      ▼
+Jetson Nano Edge Device
+      │
+      ▼
+YOLOv8 Person Detection
+      │
+      ▼
+InsightFace Recognition
+      │
+      ▼
+Blacklist Matching
+      │
+      ▼
+Snapshot Captured
+      │
+      ├────────► Firebase Storage
+      │
+      └────────► Firestore Event
+                     │
+                     ▼
+          Live Web Dashboard
+```
 
 ---
 
-## Future Improvements
-- Scale to additional edge devices for larger area coverage
-- Mobile push notifications on blacklist alert
-- TensorRT optimization for faster inference on Jetson
-- Autonomous camera tracking
-- Multi-person blacklist tracking across devices
+## 📁 Project Structure
+
+```text
+cs131_project/
+│
+├── edge_dev1/
+│   ├── main.py
+│   ├── detect.py
+│   ├── send.py
+│   ├── cam.py
+│   ├── blacklist.py
+│   ├── credentials.json
+│   └── snapshots/
+│
+├── public/
+│   ├── index.html
+│   ├── app.js
+│   ├── style.css
+│   └── 404.html
+│
+├── firebase.json
+├── firestore.rules
+└── README.md
+```
 
 ---
 
-## Conclusion
-This project demonstrates how distributed edge computing can improve surveillance systems through real-time local processing, collaborative edge intelligence, and efficient cloud integration.
+## ⚙️ How It Works
+
+1. A Jetson Nano captures live video from a USB camera.
+2. YOLOv8 detects people in each frame.
+3. InsightFace extracts facial embeddings.
+4. Faces are compared against a local blacklist.
+5. The system determines whether the scene is **GREEN** or **RED**.
+6. A snapshot is taken whenever the system changes state.
+7. The snapshot is uploaded to Firebase Cloud Storage.
+8. Event information is stored in Firestore.
+9. The website automatically updates using Firestore real-time listeners.
+
+---
+
+## 🚨 Event States
+
+### 🟢 GREEN
+
+* No blacklisted individual detected
+* Camera area is considered secure
+
+### 🔴 RED
+
+* Blacklisted individual detected
+* Snapshot captured
+* Image uploaded
+* Event logged
+* Dashboard updated
+
+---
+
+## 🌐 Live Dashboard
+
+The dashboard displays:
+
+* Current security status
+* Latest captured snapshot
+* Device ID
+* Detection confidence
+* Matched identity
+* Event timestamp
+* Event history
+
+The interface updates automatically whenever a new event is written to Firestore.
+
+---
+
+## ☁️ Firebase
+
+This project uses:
+
+* **Firestore** — stores detection events
+* **Cloud Storage** — stores captured snapshots
+* **Firebase Hosting** — hosts the live dashboard
+
+Each event contains:
+
+* Device ID
+* Event Label
+* Security Status
+* Confidence Score
+* Matched Identity
+* Timestamp
+* Image URL
+
+---
+
+## 🚀 Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/dandyandy2004/cs131_project.git
+cd cs131_project
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Create a `.env` file:
+
+```text
+DEVICE_ID=edge_dev1
+CAMERA_INDEX=0
+INFER_EVERY=3
+FIREBASE_CREDENTIALS=credentials.json
+FIREBASE_STORAGE_BUCKET=<your-storage-bucket>
+```
+
+Run the edge device:
+
+```bash
+python main.py
+```
+
+Deploy the website:
+
+```bash
+firebase deploy
+```
+
+---
+
+## 📄 Project Poster
+
+A poster describing the motivation, architecture, implementation, discussion, limitations, and future work is included with this repository.
+
+If you include the PDF in the repository root, you can view it here:
+
+```text
+CS131_Poster_v2_Fixed_Final.pdf
+```
+
+---
+
+## 🎥 Demo Video
+
+Watch the project demonstration:
+
+**https://youtube.com/watch?si=yRmxiuSl9K78ILyG&v=w96mnCS1kAU&feature=youtu.be**
+
+The demonstration includes:
+
+* Real-time person detection
+* Blacklist recognition
+* RED/GREEN status transitions
+* Firebase event logging
+* Cloud image uploads
+* Live dashboard updates
+
+---
+
+## 🔮 Future Improvements
+
+* TensorRT optimization
+* Multi-camera support
+* Person re-identification across cameras
+* SMS and email notifications
+* Building-wide deployment
+* Mobile dashboard
+* Historical analytics
+* Improved low-light performance
+
+---
+
+## 👥 Team
+
+* Andres Briseno
+* Cody Lee
+* Henry Lo
+* Russell Villanueva
+
+**University of California, Riverside**
+
+**Bourns College of Engineering**
+
+**CS131 – Edge Computing**
+
+Spring 2026
+
+---
+
+## 📚 References
+
+* Ultralytics YOLOv8
+* InsightFace
+* OpenCV
+* Firebase
+* NVIDIA Jetson Nano
+* Google Firestore
