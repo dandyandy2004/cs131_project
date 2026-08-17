@@ -1,3 +1,4 @@
+
 # Sentry 360: 360° Security Camera
 
 **Real-Time 360° Surveillance via Distributed Edge Intelligence**
@@ -226,10 +227,7 @@ firebase deploy
 A poster describing the motivation, architecture, implementation, discussion, limitations, and future work is included with this repository.
 
 If you include the PDF in the repository root, you can view it here:
-
-```text
-CS131_Poster_v2_Fixed_Final.pdf
-```
+[CS131_Poster_v2_Fixed_Final.pptx (3).pdf](https://github.com/user-attachments/files/31154964/CS131_Poster_v2_Fixed_Final.pptx.3.pdf)
 
 ---
 
